@@ -205,7 +205,7 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
   </div>
 </div></div>
 <div class="modal" id="notaModal"><div class="mbox">
-  <h2><span class="noprint">Nota Pesanan</span> <a id="notaClose" class="noprint">Tutup</a></h2>
+  <h2><span class="noprint" id="notaJudul">Nota Pesanan</span> <a id="notaClose" class="noprint">Tutup</a></h2>
   <div class="nota" id="notaBody"></div>
   <div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
     <a class="btn" id="notaWa" href="#" target="_blank" rel="noopener" style="width:100%;text-align:center;box-sizing:border-box">Lanjut kirim pesanan ke WhatsApp →</a>
@@ -213,7 +213,7 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
     <button type="button" class="pill" id="notaCopy">Salin nota</button>
     <button type="button" class="pill" id="notaDone">Selesai</button>
   </div>
-  <p class="empty noprint" style="font-size:12px;margin:10px 0 0">Periksa nota dulu. Pesanan baru dikirim setelah Anda menekan "Lanjut kirim pesanan ke WhatsApp". "Tutup" kembali ke keranjang; "Selesai" mengosongkan keranjang. Di jendela cetak, pilih "Simpan sebagai PDF" untuk menyimpan nota.</p>
+  <p class="empty noprint" style="font-size:12px;margin:10px 0 0">Periksa dulu dokumennya. Pesanan baru dikirim setelah Anda menekan "Lanjut kirim pesanan ke WhatsApp". "Tutup" kembali ke keranjang; "Selesai" mengosongkan keranjang. Di jendela cetak, pilih "Simpan sebagai PDF" untuk menyimpan nota.</p>
 </div></div>
 <script>
 // === PENGATURAN: ubah di sini ===
@@ -368,9 +368,9 @@ function kirimPesanan(){
 
 // ---------- Nota / invoice setelah pesanan ----------
 var notaNo="",notaSig="",notaTgl=null,notaTeks="";
-function nomorNota(){
+function nomorNota(pre){
   var d=new Date(),p=function(n){return ("0"+n).slice(-2)};
-  return "TJ-"+String(d.getFullYear()).slice(2)+p(d.getMonth()+1)+p(d.getDate())+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
+  return pre+String(d.getFullYear()).slice(2)+p(d.getMonth()+1)+p(d.getDate())+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
 }
 function bukaNota(){
   var rows=[],total=0;
@@ -381,27 +381,31 @@ function bukaNota(){
   if(!rows.length)return;
   var m=metode(),bayar=m==="DP"?Math.round(total*DP_PERSEN/100):(m==="Lunas"?total:0),sisa=total-bayar;
   var sig=JSON.stringify(rows)+m;
-  if(sig!==notaSig){notaSig=sig;notaNo=nomorNota();notaTgl=new Date()}
+  if(sig!==notaSig){notaSig=sig;notaNo=nomorNota(m==="Lunas"?"NL-":"INV-");notaTgl=new Date()}
   // cantumkan nomor nota di pesan WhatsApp
   renderCart();
-  g("wa").href+="%0A"+encodeURIComponent("No. Nota: "+notaNo);
+  g("wa").href+="%0A"+encodeURIComponent("No. "+(m==="Lunas"?"Nota":"Invoice")+": "+notaNo);
   var tgl=notaTgl.toLocaleString("id-ID",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
   var cust=user?user.nama:"Umum";
-  var status=m==="Lunas"?"Lunas (transfer)":(m==="DP"?"DP "+DP_PERSEN+"%":"Menunggu konfirmasi admin");
-  var rek=m==="Info"?"":REK_BANK+" "+REK_NO+(REK_NAMA?" a.n. "+REK_NAMA:"");
-  var out='<h3>Tomvi Jaya</h3><div class="sub">Keju &amp; Susu · NOTA PESANAN</div>'
-   +'<div class="meta"><span>No. Nota</span><span><b>'+esc(notaNo)+'</b></span><span>Tanggal</span><span>'+esc(tgl)+'</span><span>Customer</span><span>'+esc(cust)+(user&&user.wa?' ('+esc(user.wa)+')':'')+'</span><span>Status</span><span><span class="stat">'+esc(status)+'</span></span></div>'
+  var lunas=m==="Lunas",jenis=lunas?"NOTA LUNAS":"INVOICE PENAGIHAN"+(m==="DP"?" (DP)":""),dok=lunas?"Nota":"Invoice";
+  var status=lunas?"LUNAS":(m==="DP"?"Menunggu DP "+DP_PERSEN+"%":"Belum dibayar · menunggu konfirmasi CS");
+  var rek=REK_BANK+" "+REK_NO+(REK_NAMA?" a.n. "+REK_NAMA:"");
+  g("notaJudul").textContent=lunas?"Nota Lunas":"Invoice Penagihan";
+  var out='<h3>Tomvi Jaya</h3><div class="sub">Keju &amp; Susu · '+jenis+'</div>'
+   +'<div class="meta"><span>No. '+dok+'</span><span><b>'+esc(notaNo)+'</b></span><span>Tanggal</span><span>'+esc(tgl)+'</span><span>Customer</span><span>'+esc(cust)+(user&&user.wa?' ('+esc(user.wa)+')':'')+'</span><span>Status</span><span><span class="stat">'+esc(status)+'</span></span></div>'
    +'<table>'+rows.map(function(r){return '<tr><td>'+esc(r.n)+'<br><small>'+r.q+' '+esc(r.s)+' × '+rp(r.h)+'</small></td><td>'+rp(r.sub)+'</td></tr>'}).join("")
    +'<tr class="tot grand"><td>TOTAL</td><td>'+rp(total)+'</td></tr>';
-  if(m!=="Info")out+='<tr class="tot"><td>'+(m==="DP"?"DP yang ditransfer":"Dibayar")+'</td><td>'+rp(bayar)+'</td></tr><tr class="tot"><td>Sisa pembayaran</td><td>'+rp(sisa)+'</td></tr>';
+  if(lunas)out+='<tr class="tot"><td>Dibayar (transfer)</td><td>'+rp(bayar)+'</td></tr><tr class="tot"><td>Sisa tagihan</td><td>'+rp(0)+'</td></tr>';
+  else if(m==="DP")out+='<tr class="tot"><td>DP yang harus dibayar ('+DP_PERSEN+'%)</td><td>'+rp(bayar)+'</td></tr><tr class="tot"><td>Sisa pelunasan</td><td>'+rp(sisa)+'</td></tr>';
+  else out+='<tr class="tot"><td>Total tagihan</td><td>'+rp(total)+'</td></tr>';
   out+='</table>';
-  if(rek)out+='<div class="rk"><b>Transfer ke:</b><br>'+esc(rek)+'<br><small>Kirim bukti transfer ke CS via WhatsApp.</small></div>';
-  out+='<div class="ft">Nota ini dibuat dari pesanan di website. Pembayaran dianggap sah setelah dikonfirmasi admin. Terima kasih sudah memesan!</div>';
+  out+='<div class="rk"><b>'+(lunas?"Pembayaran ke:":"Tagihan dibayar ke:")+'</b><br>'+esc(rek)+'<br><small>'+(lunas?"Kirim bukti transfer ke CS via WhatsApp.":"Setelah transfer, kirim bukti pembayaran ke CS via WhatsApp.")+'</small></div>';
+  out+='<div class="ft">'+(lunas?"Terima kasih sudah memesan! Pembayaran dianggap sah setelah dikonfirmasi admin.":"Harga dan ketersediaan barang dikonfirmasi CS. Pesanan diproses setelah pembayaran diterima dan dikonfirmasi admin.")+'</div>';
   g("notaBody").innerHTML=out;g("notaWa").href=g("wa").href;g("notaWa").textContent="Lanjut kirim pesanan ke WhatsApp →";
-  notaTeks="NOTA PESANAN — Tomvi Jaya\nNo. Nota: "+notaNo+"\nTanggal: "+tgl+"\nCustomer: "+cust+"\n\n"
+  notaTeks=jenis+" — Tomvi Jaya\nNo. "+dok+": "+notaNo+"\nTanggal: "+tgl+"\nCustomer: "+cust+"\n\n"
    +rows.map(function(r){return "- "+r.n+" ("+r.s+") "+r.q+" × "+rp(r.h)+" = "+rp(r.sub)}).join("\n")
-   +"\n\nTOTAL: "+rp(total)+(m!=="Info"?"\n"+(m==="DP"?"DP":"Dibayar")+": "+rp(bayar)+"\nSisa: "+rp(sisa):"")
-   +"\nStatus: "+status+(rek?"\nTransfer ke: "+rek:"");
+   +"\n\nTOTAL: "+rp(total)+(m!=="Info"?"\n"+(m==="DP"?"DP yang harus dibayar":"Dibayar")+": "+rp(bayar)+"\nSisa: "+rp(sisa):"")
+   +"\nStatus: "+status+"\nPembayaran ke: "+rek;
   g("notaModal").classList.add("open");
 }
 g("wa").addEventListener("click",function(e){e.preventDefault();bukaNota()});   // nota tampil dulu, WhatsApp belum dibuka
