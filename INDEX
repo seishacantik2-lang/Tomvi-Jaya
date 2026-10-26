@@ -125,6 +125,22 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
 .done li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
 .done li:last-child{border:0}
 .rek{background:var(--y-xl);border:2px dashed var(--y);border-radius:14px;padding:10px 12px;margin:10px 0;font-weight:600;white-space:pre-line}
+/* ---- Nota / invoice ---- */
+#notaModal{z-index:70}
+.nota{background:#fff;color:#2A2108;border:1px dashed #B98300;border-radius:14px;padding:16px;font:13px/1.45 var(--body)}
+.nota h3{margin:0;font:800 20px var(--head);text-align:center}
+.nota .sub{text-align:center;color:#7A6D4A;font-size:12px;margin-bottom:10px}
+.nota .meta{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12px;border-top:1px dashed #B98300;border-bottom:1px dashed #B98300;padding:8px 0;margin:8px 0}
+.nota .meta span:nth-child(odd){color:#7A6D4A}
+.nota table{width:100%;border-collapse:collapse}
+.nota td{padding:5px 0;vertical-align:top;border-bottom:1px solid #F0E6C2}
+.nota td:last-child{text-align:right;white-space:nowrap;padding-left:8px}
+.nota .tot td{border:0;font-weight:700}
+.nota .grand td{font-size:15px;font-weight:800;border-top:2px solid #2A2108}
+.nota .stat{display:inline-block;padding:2px 10px;border-radius:99px;background:#FFF4CC;font-weight:700}
+.nota .rk{margin-top:10px;padding:8px 10px;background:#FFFAE8;border-radius:10px}
+.nota .ft{margin-top:10px;text-align:center;color:#7A6D4A;font-size:11px}
+@media print{body>*:not(#notaModal){display:none!important}#notaModal{position:static;display:block;background:none;padding:0}#notaModal .mbox{width:100%;max-height:none;overflow:visible;padding:0;background:#fff}.noprint{display:none!important}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -187,6 +203,16 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
     <p class="empty">Setelah transfer, kirim bukti pembayaran ke CS lewat WhatsApp.</p>
     <a class="btn" id="rekWa" href="#" target="_blank" rel="noopener">Kirim bukti transfer</a>
   </div>
+</div></div>
+<div class="modal" id="notaModal"><div class="mbox">
+  <h2><span class="noprint">Nota Pesanan</span> <a id="notaClose" class="noprint">Tutup</a></h2>
+  <div class="nota" id="notaBody"></div>
+  <div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    <button type="button" class="btn" id="notaPrint" style="border:0;cursor:pointer">Cetak / Simpan PDF</button>
+    <button type="button" class="pill" id="notaCopy">Salin nota</button>
+    <button type="button" class="pill" id="notaDone">Selesai</button>
+  </div>
+  <p class="empty noprint" style="font-size:12px;margin:10px 0 0">"Selesai" akan mengosongkan keranjang. Di jendela cetak, pilih "Simpan sebagai PDF" untuk menyimpan nota.</p>
 </div></div>
 <script>
 // === PENGATURAN: ubah di sini ===
@@ -339,6 +365,57 @@ function kirimPesanan(){
   api({action:'pesan',token:TOKEN,items:items,metode:metode()}).then(function(r){if(!r||!r.ok)lastSent=''}).catch(function(){lastSent=''});
 }
 g('wa').addEventListener('click',kirimPesanan);
+
+// ---------- Nota / invoice setelah pesanan ----------
+var notaNo="",notaSig="",notaTgl=null,notaTeks="";
+function nomorNota(){
+  var d=new Date(),p=function(n){return ("0"+n).slice(-2)};
+  return "TJ-"+String(d.getFullYear()).slice(2)+p(d.getMonth()+1)+p(d.getDate())+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
+}
+function bukaNota(){
+  var rows=[],total=0;
+  Object.keys(cart).forEach(function(k){
+    var l=line(k),q=cart[k];if(!l)return;
+    rows.push({n:l.n,s:l.s,q:q,h:l.h,sub:l.h*q});total+=l.h*q;
+  });
+  if(!rows.length)return;
+  var m=metode(),bayar=m==="DP"?Math.round(total*DP_PERSEN/100):(m==="Lunas"?total:0),sisa=total-bayar;
+  var sig=JSON.stringify(rows)+m;
+  if(sig!==notaSig){notaSig=sig;notaNo=nomorNota();notaTgl=new Date()}
+  // cantumkan nomor nota di pesan WhatsApp
+  renderCart();
+  g("wa").href+="%0A"+encodeURIComponent("No. Nota: "+notaNo);
+  var tgl=notaTgl.toLocaleString("id-ID",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  var cust=user?user.nama:"Umum";
+  var status=m==="Lunas"?"Lunas (transfer)":(m==="DP"?"DP "+DP_PERSEN+"%":"Menunggu konfirmasi admin");
+  var rek=m==="Info"?"":REK_BANK+" "+REK_NO+(REK_NAMA?" a.n. "+REK_NAMA:"");
+  var out='<h3>Tomvi Jaya</h3><div class="sub">Keju &amp; Susu · NOTA PESANAN</div>'
+   +'<div class="meta"><span>No. Nota</span><span><b>'+esc(notaNo)+'</b></span><span>Tanggal</span><span>'+esc(tgl)+'</span><span>Customer</span><span>'+esc(cust)+(user&&user.wa?' ('+esc(user.wa)+')':'')+'</span><span>Status</span><span><span class="stat">'+esc(status)+'</span></span></div>'
+   +'<table>'+rows.map(function(r){return '<tr><td>'+esc(r.n)+'<br><small>'+r.q+' '+esc(r.s)+' × '+rp(r.h)+'</small></td><td>'+rp(r.sub)+'</td></tr>'}).join("")
+   +'<tr class="tot grand"><td>TOTAL</td><td>'+rp(total)+'</td></tr>';
+  if(m!=="Info")out+='<tr class="tot"><td>'+(m==="DP"?"DP yang ditransfer":"Dibayar")+'</td><td>'+rp(bayar)+'</td></tr><tr class="tot"><td>Sisa pembayaran</td><td>'+rp(sisa)+'</td></tr>';
+  out+='</table>';
+  if(rek)out+='<div class="rk"><b>Transfer ke:</b><br>'+esc(rek)+'<br><small>Kirim bukti transfer ke CS via WhatsApp.</small></div>';
+  out+='<div class="ft">Nota ini dibuat dari pesanan di website. Pembayaran dianggap sah setelah dikonfirmasi admin. Terima kasih sudah memesan!</div>';
+  g("notaBody").innerHTML=out;
+  notaTeks="NOTA PESANAN — Tomvi Jaya\nNo. Nota: "+notaNo+"\nTanggal: "+tgl+"\nCustomer: "+cust+"\n\n"
+   +rows.map(function(r){return "- "+r.n+" ("+r.s+") "+r.q+" × "+rp(r.h)+" = "+rp(r.sub)}).join("\n")
+   +"\n\nTOTAL: "+rp(total)+(m!=="Info"?"\n"+(m==="DP"?"DP":"Dibayar")+": "+rp(bayar)+"\nSisa: "+rp(sisa):"")
+   +"\nStatus: "+status+(rek?"\nTransfer ke: "+rek:"");
+  g("notaModal").classList.add("open");
+}
+g("wa").addEventListener("click",bukaNota);
+g("notaClose").onclick=function(){g("notaModal").classList.remove("open")};
+g("notaPrint").onclick=function(){window.print()};
+g("notaDone").onclick=function(){
+  g("notaModal").classList.remove("open");g("drawer").classList.remove("open");
+  cart={};notaSig="";lastSent="";render();renderCart();
+};
+g("notaCopy").onclick=function(){
+  var b=g("notaCopy"),ok=function(){b.textContent="Tersalin ✓";setTimeout(function(){b.textContent="Salin nota"},2000)};
+  var fb=function(){var t=document.createElement("textarea");t.value=notaTeks;document.body.appendChild(t);t.select();try{document.execCommand("copy");ok()}catch(e){}document.body.removeChild(t)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(notaTeks).then(ok,fb)}else fb();
+};
 function saveToken(t){TOKEN=t||'';try{if(t)sessionStorage.setItem('tj_token',t);else sessionStorage.removeItem('tj_token')}catch(e){}}
 function renderUser(){
   var t=user?'Halo, '+String(user.nama).split(/\s+/)[0]:null;
