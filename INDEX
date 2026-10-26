@@ -180,6 +180,7 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
   <a class="btn" id="wa" href="#" target="_blank" rel="noopener">Pesan via WhatsApp</a>
   <div class="rek" id="rek" style="display:none">
     <b>Transfer ke rekening</b>
+    <div id="rekAmt" style="margin-top:6px;font-weight:700"></div>
     <div class="no" id="rekNo"></div>
     <small id="rekNm"></small>
     <div class="mrow"><button type="button" class="pill" id="rekCopy">Salin nomor rekening</button></div>
@@ -284,8 +285,9 @@ function line(k){
 }
 var METODE={DP:"Bayar DP",Info:"Info dulu (tanya CS)",Lunas:"Lunas"};
 function metode(){var r=document.querySelector('input[name="pm"]:checked');return r?r.value:"Info"}
+var lastTotal=0;
+function jumlahBayar(m){return m==="DP"?Math.round(lastTotal*DP_PERSEN/100):(m==="Lunas"?lastTotal:0)}
 function renderCart(){
-  g("rek").style.display="none";
   var keys=Object.keys(cart),total=0,count=0,msg=encodeURIComponent("Halo Tomvi Jaya, saya mau pesan:")+"%0A";
   if(user)msg+=encodeURIComponent("Customer istimewa: "+user.nama+(user.wa?" ("+user.wa+")":""))+"%0A";
   g("lines").innerHTML=keys.length?keys.map(function(k){
@@ -294,21 +296,22 @@ function renderCart(){
     return '<div class="line"><span>'+esc(l.n)+' <small>/'+esc(l.s)+'</small></span><b>'+rp(sub)+'</b><span class="qty"><button data-dec="'+k+'" aria-label="Kurangi">−</button> '+q+' <button data-add="'+k+'" aria-label="Tambah">+</button></span></div>';
   }).join(""):"<p class='empty'>Keranjang masih kosong. Tekan + pada produk untuk menambah.</p>";
   g("count").textContent=count;
-  g("total").textContent=rp(total);
-  g("wa").href="https://wa.me/"+WA+"?text="+msg+encodeURIComponent("Total: "+rp(total))+"%0A"+encodeURIComponent("Pembayaran: "+METODE[metode()]);
+  g("total").textContent=rp(total);lastTotal=total;
+  g("wa").href="https://wa.me/"+WA+"?text="+msg+encodeURIComponent("Total: "+rp(total))+"%0A"+encodeURIComponent("Pembayaran: "+METODE[metode()]+(metode()==="DP"?" ("+DP_PERSEN+"% = "+rp(jumlahBayar("DP"))+")":""));
+  showRek();
 }
-// Tampilan rekening setelah pesanan dikirim (hanya untuk DP / Lunas)
+// Info transfer tampil otomatis begitu DP / Lunas dipilih (tidak perlu menunggu klik WhatsApp)
 function showRek(){
-  var m=metode();
-  if(m==="Info"||!Object.keys(cart).length)return;
+  var m=metode(),box=g("rek");
+  if(m==="Info"||!Object.keys(cart).length){box.style.display="none";return}
+  var jml=jumlahBayar(m);
+  g("rekAmt").textContent=(m==="DP"?"DP "+DP_PERSEN+"%: ":"Total lunas: ")+rp(jml);
   g("rekNo").textContent=REK_BANK+" "+REK_NO;
   g("rekNm").textContent=REK_NAMA?"a.n. "+REK_NAMA:"";
-  var pesan="Halo Tomvi Jaya, saya sudah transfer ("+METODE[m]+")"+(user?" atas nama "+user.nama:"")+". Berikut bukti transfernya:";
+  var pesan="Halo Tomvi Jaya, saya sudah transfer ("+METODE[m]+" "+rp(jml)+")"+(user?" atas nama "+user.nama:"")+". Berikut bukti transfernya:";
   g("rekWa").href="https://wa.me/"+WA+"?text="+encodeURIComponent(pesan);
-  g("rek").style.display="block";
-  g("rek").scrollIntoView({block:"nearest",behavior:"smooth"});
+  box.style.display="block";
 }
-g("wa").addEventListener("click",showRek);
 g("pay").addEventListener("change",renderCart);
 g("rekCopy").onclick=function(){
   var b=g("rekCopy"),ok=function(){b.textContent="Tersalin ✓";setTimeout(function(){b.textContent="Salin nomor rekening"},2000)};
@@ -321,6 +324,7 @@ function api(body){
   return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),keepalive:true}).then(function(r){return r.json()});
 }
 // Kirim isi keranjang ke sheet Penjualan (jalan di latar belakang, WhatsApp tetap terbuka walau gagal)
+var lastSent="";
 function kirimPesanan(){
   if(!API_URL)return;
   var items=[];
@@ -331,7 +335,8 @@ function kirimPesanan(){
     items.push({produk:produk,satuan:satuan,qty:q});
   });
   if(!items.length)return;
-  api({action:'pesan',token:TOKEN,items:items}).catch(function(){});
+  var sig=JSON.stringify(items)+metode();if(sig===lastSent)return;lastSent=sig;
+  api({action:'pesan',token:TOKEN,items:items,metode:metode()}).then(function(r){if(!r||!r.ok)lastSent=''}).catch(function(){lastSent=''});
 }
 g('wa').addEventListener('click',kirimPesanan);
 function saveToken(t){TOKEN=t||'';try{if(t)sessionStorage.setItem('tj_token',t);else sessionStorage.removeItem('tj_token')}catch(e){}}
