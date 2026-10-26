@@ -208,11 +208,12 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
   <h2><span class="noprint">Nota Pesanan</span> <a id="notaClose" class="noprint">Tutup</a></h2>
   <div class="nota" id="notaBody"></div>
   <div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-    <button type="button" class="btn" id="notaPrint" style="border:0;cursor:pointer">Cetak / Simpan PDF</button>
+    <a class="btn" id="notaWa" href="#" target="_blank" rel="noopener" style="width:100%;text-align:center;box-sizing:border-box">Lanjut kirim pesanan ke WhatsApp →</a>
+    <button type="button" class="pill" id="notaPrint">Cetak / Simpan PDF</button>
     <button type="button" class="pill" id="notaCopy">Salin nota</button>
     <button type="button" class="pill" id="notaDone">Selesai</button>
   </div>
-  <p class="empty noprint" style="font-size:12px;margin:10px 0 0">"Selesai" akan mengosongkan keranjang. Di jendela cetak, pilih "Simpan sebagai PDF" untuk menyimpan nota.</p>
+  <p class="empty noprint" style="font-size:12px;margin:10px 0 0">Periksa nota dulu. Pesanan baru dikirim setelah Anda menekan "Lanjut kirim pesanan ke WhatsApp". "Tutup" kembali ke keranjang; "Selesai" mengosongkan keranjang. Di jendela cetak, pilih "Simpan sebagai PDF" untuk menyimpan nota.</p>
 </div></div>
 <script>
 // === PENGATURAN: ubah di sini ===
@@ -364,7 +365,6 @@ function kirimPesanan(){
   var sig=JSON.stringify(items)+metode();if(sig===lastSent)return;lastSent=sig;
   api({action:'pesan',token:TOKEN,items:items,metode:metode()}).then(function(r){if(!r||!r.ok)lastSent=''}).catch(function(){lastSent=''});
 }
-g('wa').addEventListener('click',kirimPesanan);
 
 // ---------- Nota / invoice setelah pesanan ----------
 var notaNo="",notaSig="",notaTgl=null,notaTeks="";
@@ -397,14 +397,15 @@ function bukaNota(){
   out+='</table>';
   if(rek)out+='<div class="rk"><b>Transfer ke:</b><br>'+esc(rek)+'<br><small>Kirim bukti transfer ke CS via WhatsApp.</small></div>';
   out+='<div class="ft">Nota ini dibuat dari pesanan di website. Pembayaran dianggap sah setelah dikonfirmasi admin. Terima kasih sudah memesan!</div>';
-  g("notaBody").innerHTML=out;
+  g("notaBody").innerHTML=out;g("notaWa").href=g("wa").href;g("notaWa").textContent="Lanjut kirim pesanan ke WhatsApp →";
   notaTeks="NOTA PESANAN — Tomvi Jaya\nNo. Nota: "+notaNo+"\nTanggal: "+tgl+"\nCustomer: "+cust+"\n\n"
    +rows.map(function(r){return "- "+r.n+" ("+r.s+") "+r.q+" × "+rp(r.h)+" = "+rp(r.sub)}).join("\n")
    +"\n\nTOTAL: "+rp(total)+(m!=="Info"?"\n"+(m==="DP"?"DP":"Dibayar")+": "+rp(bayar)+"\nSisa: "+rp(sisa):"")
    +"\nStatus: "+status+(rek?"\nTransfer ke: "+rek:"");
   g("notaModal").classList.add("open");
 }
-g("wa").addEventListener("click",bukaNota);
+g("wa").addEventListener("click",function(e){e.preventDefault();bukaNota()});   // nota tampil dulu, WhatsApp belum dibuka
+g("notaWa").addEventListener("click",function(){kirimPesanan();g("notaWa").textContent="Buka WhatsApp lagi →"});
 g("notaClose").onclick=function(){g("notaModal").classList.remove("open")};
 g("notaPrint").onclick=function(){window.print()};
 g("notaDone").onclick=function(){
