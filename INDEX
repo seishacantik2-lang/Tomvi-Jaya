@@ -105,6 +105,26 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
 #addbar small{display:block;font-size:13px;color:#FFE27A}
 #addbar .ab-go{flex:none;background:var(--y);color:#2A2108;border-radius:99px;padding:8px 14px;font:700 13px var(--body)}
 @media(min-width:800px){#addbar{bottom:20px}}
+.pay{margin:14px 0 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pay>b{flex-basis:100%;font:700 14px var(--body)}
+.po{flex:1;min-width:0;cursor:pointer}
+.po input{position:absolute;opacity:0;pointer-events:none}
+.po span{display:block;text-align:center;border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:9px 6px;font:700 13px var(--body);white-space:nowrap}
+.po input:checked+span{background:var(--y);border-color:var(--y);color:#2A2108}
+.po input:focus-visible+span{outline:3px solid var(--y-d);outline-offset:2px}
+.rek{margin-top:16px;background:var(--y-xl);border:2px solid var(--y);border-radius:18px;padding:14px 16px}
+.rek .no{font:800 24px/1.2 var(--head);letter-spacing:.02em;margin:6px 0 2px}
+.rek .mrow .pill{color:var(--ink);border-color:var(--ink);padding:8px 16px}
+.rek p{margin:10px 0}
+.payhd{font:700 14px var(--body);margin:14px 0 6px}
+.payopts{display:flex;gap:6px}
+.payopts button{flex:1;border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:9px 6px;font:700 14px var(--body);cursor:pointer}
+.payopts button.on{background:var(--y);border-color:var(--y);color:#2A2108}
+.paynote{font-size:13px;color:var(--mute);margin:8px 0 14px;min-height:2.6em}
+.done{list-style:none;padding:0;margin:10px 0}
+.done li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.done li:last-child{border:0}
+.rek{background:var(--y-xl);border:2px dashed var(--y);border-radius:14px;padding:10px 12px;margin:10px 0;font-weight:600;white-space:pre-line}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -152,13 +172,31 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
   <h2>Keranjang <a id="closeCart">Tutup</a></h2>
   <div id="lines"></div>
   <p><b>Total: <span id="total">Rp 0</span></b></p>
+  <div class="pay" id="pay" role="radiogroup" aria-label="Metode pembayaran"><b>Metode pembayaran</b>
+    <label class="po"><input type="radio" name="pm" value="DP"><span>💰 Bayar DP</span></label>
+    <label class="po"><input type="radio" name="pm" value="Info" checked><span>ℹ️ Info dulu</span></label>
+    <label class="po"><input type="radio" name="pm" value="Lunas"><span>✅ Lunas</span></label>
+  </div>
   <a class="btn" id="wa" href="#" target="_blank" rel="noopener">Pesan via WhatsApp</a>
+  <div class="rek" id="rek" style="display:none">
+    <b>Transfer ke rekening</b>
+    <div class="no" id="rekNo"></div>
+    <small id="rekNm"></small>
+    <div class="mrow"><button type="button" class="pill" id="rekCopy">Salin nomor rekening</button></div>
+    <p class="empty">Setelah transfer, kirim bukti pembayaran ke CS lewat WhatsApp.</p>
+    <a class="btn" id="rekWa" href="#" target="_blank" rel="noopener">Kirim bukti transfer</a>
+  </div>
 </div></div>
 <script>
 // === PENGATURAN: ubah di sini ===
 var WA = "6287743146842";   // nomor WhatsApp CS, format 62...
 var MARKUP = 0.0909;       // kenaikan harga 9,09%
 var ROUND = 500;           // pembulatan harga ke Rp 500 terdekat
+var REK_BANK = "BCA";      // bank tujuan transfer
+var REK_NO = "7345758355"; // nomor rekening
+var REK_NAMA = "";         // nama pemilik rekening (opsional, isi kalau mau ditampilkan)
+var DP_PERSEN = 30;        // besar DP dalam persen dari total (ubah sesuai kebijakan)
+var REKENING = "";         // opsional, tampil di layar konfirmasi. Contoh: "BCA 1234567890 a.n. Tomvi Jaya". Kosong = CS kirim rekening lewat WhatsApp
 // Data harga ASLI (sebelum kenaikan): [nama, kategori, [[harga, satuan], ...]]
 var API_URL = "https://script.google.com/macros/s/AKfycby37LxHY04W6zqWOxAiMeOevulHLhxQ31eIy1gO_xoy86Y_nHbifrMxGAieGwoj5jiiFw/exec";  // URL Web App Apps Script (login istimewa + catat pesanan ke Google Sheet)
 var K="Keju & Dairy", S="Susu & Krimer";
@@ -244,7 +282,10 @@ function line(k){
   var d=D[p[0]],t=d&&d[2][p[1]];
   return t?{n:d[0],s:t[1],h:price(t[0])}:null;
 }
+var METODE={DP:"Bayar DP",Info:"Info dulu (tanya CS)",Lunas:"Lunas"};
+function metode(){var r=document.querySelector('input[name="pm"]:checked');return r?r.value:"Info"}
 function renderCart(){
+  g("rek").style.display="none";
   var keys=Object.keys(cart),total=0,count=0,msg=encodeURIComponent("Halo Tomvi Jaya, saya mau pesan:")+"%0A";
   if(user)msg+=encodeURIComponent("Customer istimewa: "+user.nama+(user.wa?" ("+user.wa+")":""))+"%0A";
   g("lines").innerHTML=keys.length?keys.map(function(k){
@@ -254,8 +295,26 @@ function renderCart(){
   }).join(""):"<p class='empty'>Keranjang masih kosong. Tekan + pada produk untuk menambah.</p>";
   g("count").textContent=count;
   g("total").textContent=rp(total);
-  g("wa").href="https://wa.me/"+WA+"?text="+msg+encodeURIComponent("Total: "+rp(total));
+  g("wa").href="https://wa.me/"+WA+"?text="+msg+encodeURIComponent("Total: "+rp(total))+"%0A"+encodeURIComponent("Pembayaran: "+METODE[metode()]);
 }
+// Tampilan rekening setelah pesanan dikirim (hanya untuk DP / Lunas)
+function showRek(){
+  var m=metode();
+  if(m==="Info"||!Object.keys(cart).length)return;
+  g("rekNo").textContent=REK_BANK+" "+REK_NO;
+  g("rekNm").textContent=REK_NAMA?"a.n. "+REK_NAMA:"";
+  var pesan="Halo Tomvi Jaya, saya sudah transfer ("+METODE[m]+")"+(user?" atas nama "+user.nama:"")+". Berikut bukti transfernya:";
+  g("rekWa").href="https://wa.me/"+WA+"?text="+encodeURIComponent(pesan);
+  g("rek").style.display="block";
+  g("rek").scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+g("wa").addEventListener("click",showRek);
+g("pay").addEventListener("change",renderCart);
+g("rekCopy").onclick=function(){
+  var b=g("rekCopy"),ok=function(){b.textContent="Tersalin ✓";setTimeout(function(){b.textContent="Salin nomor rekening"},2000)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(REK_NO).then(ok,function(){b.textContent="Nomor: "+REK_NO})}
+  else{b.textContent="Nomor: "+REK_NO}
+};
 // ---------- Login customer istimewa (dicek ke Google Sheet lewat Apps Script) ----------
 function api(body){
   if(!API_URL)return Promise.reject(new Error('API_URL'));
