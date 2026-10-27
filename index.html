@@ -58,6 +58,7 @@ h2.t{font:700 22px var(--head);letter-spacing:-.02em;margin:30px 0 12px}
 .card h3{margin:10px 12px 6px;font:600 14px/1.3 var(--body);min-height:2.6em}
 .tier{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;margin:0 12px;padding:5px 0}
 .tier b{font-size:14px}.tier small{color:var(--mute)}
+.tier i.sat{font-style:normal;font-size:10px;font-weight:700;color:#0D5A8C;background:#C7E1FA;border-radius:99px;padding:1px 7px;margin-left:2px;white-space:nowrap}
 .add{background:var(--y);border:0;border-radius:99px;width:28px;height:28px;font:700 17px var(--body);color:#2A2108;cursor:pointer;flex:none}
 .add:hover{background:var(--y-d);color:#fff}
 .empty{color:var(--mute)}
@@ -218,7 +219,10 @@ body.member .hero,body.member #chips,body.member .t,body.member .search{display:
 <script>
 // === PENGATURAN: ubah di sini ===
 var WA = "6287743146842";   // nomor WhatsApp CS, format 62...
-var MARKUP = 0.0909;       // kenaikan harga 9,09%
+var MARKUP = 0.0909;       // kenaikan harga 9,09% (untuk dus / bal / 10 pcs)
+var MARKUP_SATUAN = 0.11;  // kenaikan harga 11% (untuk harga satuan: batang, pcs, pak, potong, kg, dll)
+var BULK = ["dus","bal","bal 25 kg","10 pcs"]; // satuan yang tetap pakai MARKUP 9,09% (harus sama dengan rumus kolom Harga Web di Google Sheet)
+var TANDA_SATUAN = true;   // true = tampilkan tanda kecil "satuan" di harga satuan; false = sembunyikan
 var ROUND = 500;           // pembulatan harga ke Rp 500 terdekat
 var REK_BANK = "BCA";      // bank tujuan transfer
 var REK_NO = "7345758355"; // nomor rekening
@@ -263,20 +267,21 @@ var D = [
  ["Bubuk NDC Krimer (Avi)",S,[[36000,"kg"],[820000,"bal"]]]
 ];
 // === akhir pengaturan ===
-var price=function(b){return Math.round(b*(1+MARKUP)/ROUND)*ROUND};
+var isBulk=function(u){return BULK.indexOf(u)>-1};
+var price=function(b,u){return Math.round(b*(1+(isBulk(u)?MARKUP:MARKUP_SATUAN))/ROUND)*ROUND};
 var rp=function(n){return "Rp "+Number(n).toLocaleString("id-ID")};
 var cart={}, cat="", query="", user=null, vip=[], TOKEN="";
 var EMO={}; EMO[K]="🧀"; EMO[S]="🥛";
 function g(id){return document.getElementById(id)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function normal(nama,satuan){
-  for(var i=0;i<D.length;i++){if(D[i][0]===nama){for(var j=0;j<D[i][2].length;j++){if(D[i][2][j][1]===satuan)return price(D[i][2][j][0])}}}
+  for(var i=0;i<D.length;i++){if(D[i][0]===nama){for(var j=0;j<D[i][2].length;j++){if(D[i][2][j][1]===satuan)return price(D[i][2][j][0],satuan)}}}
   return 0;
 }
 function card(x){
   var d=x.d;
   return '<div class="card"><div class="ph" aria-hidden="true">'+EMO[d[1]]+'<u>Foto menyusul</u></div><h3>'+esc(d[0])+'</h3>'+
-  d[2].map(function(t,j){return '<div class="tier"><span><b>'+rp(price(t[0]))+'</b> <small>/'+esc(t[1])+'</small></span><button class="add" aria-label="Tambah '+esc(d[0])+' per '+esc(t[1])+'" data-add="'+x.i+'-'+j+'">+</button></div>'}).join("")+'</div>';
+  d[2].map(function(t,j){return '<div class="tier"><span><b>'+rp(price(t[0],t[1]))+'</b> <small>/'+esc(t[1])+'</small>'+(TANDA_SATUAN&&!isBulk(t[1])?' <i class="sat">satuan</i>':'')+'</span><button class="add" aria-label="Tambah '+esc(d[0])+' per '+esc(t[1])+'" data-add="'+x.i+'-'+j+'">+</button></div>'}).join("")+'</div>';
 }
 function vipCard(v,i){
   var n=normal(v.nama,v.satuan),h=Number(v.harga)||0;
@@ -308,7 +313,7 @@ function line(k){
   var p=k.split('-');
   if(p[0]==='v'){var v=vip[p[1]];return v?{n:v.nama+' (istimewa)',s:v.satuan,h:Number(v.harga)||0}:null}
   var d=D[p[0]],t=d&&d[2][p[1]];
-  return t?{n:d[0],s:t[1],h:price(t[0])}:null;
+  return t?{n:d[0],s:t[1],h:price(t[0],t[1])}:null;
 }
 var METODE={DP:"Bayar DP",Info:"Info dulu (tanya CS)",Lunas:"Lunas"};
 function metode(){var r=document.querySelector('input[name="pm"]:checked');return r?r.value:"Info"}
